@@ -6,6 +6,10 @@ import {
   Menu, Share2, QrCode, ArrowLeft
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  AlignmentType, BorderStyle, WidthType, HeadingLevel, PageBreak, ImageRun
+} from 'docx';
 
 // --- KONFIGURASI API ---
 // PENTING: Aplikasi ini pakai model "Bring Your Own Key" (BYOK).
@@ -360,6 +364,7 @@ export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingDocx, setIsDownloadingDocx] = useState(false);
   
   // Data States
   const [riwayat, setRiwayat] = useLocalStorage('eduai_riwayat', []);
@@ -946,6 +951,176 @@ export default function App() {
     processDownload();
   };
 
+  // --- FUNGSI DOWNLOAD DOCX (Bisa diedit langsung di MS Word) ---
+  const downloadDOCX = async () => {
+    if (!currentResult) return;
+    setIsDownloadingDocx(true);
+
+    try {
+      const heading = (text, size = 28) => new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        children: [new TextRun({ text, bold: true, size })],
+      });
+
+      const kop = [];
+      if (pengaturan.namaSekolah) {
+        kop.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: pengaturan.namaSekolah, bold: true, size: 26 })],
+        }));
+      }
+      if (pengaturan.alamatSekolah) {
+        kop.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+          children: [new TextRun({ text: pengaturan.alamatSekolah, size: 20 })],
+        }));
+      }
+
+      // --- HALAMAN COVER ---
+      const coverChildren = [
+        ...kop,
+        heading(currentResult.judul.toUpperCase(), 32),
+        new Paragraph({ text: '', spacing: { after: 200 } }),
+        new Paragraph({ children: [new TextRun({ text: `Mata Pelajaran: `, bold: true }), new TextRun(currentResult.mataPelajaran || '-')] }),
+        new Paragraph({ children: [new TextRun({ text: `Jenjang Pendidikan: `, bold: true }), new TextRun(currentResult.jenjangPendidikan || '-')] }),
+        new Paragraph({ children: [new TextRun({ text: `Materi Pembelajaran: `, bold: true }), new TextRun(currentResult.materi || '-')] }),
+        new Paragraph({ children: [new TextRun({ text: `Jumlah Soal: `, bold: true }), new TextRun(`${currentResult.daftarSoal.length} Butir Soal`)] }),
+        new Paragraph({ text: '', spacing: { after: 400 } }),
+        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Dokumen Evaluasi Pembelajaran', italics: true })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Diproses & Dihasilkan secara otomatis oleh EduAI Generator', italics: true })] }),
+        new Paragraph({ children: [new PageBreak()] }),
+      ];
+
+      // --- HALAMAN DAFTAR SOAL ---
+      const soalChildren = [
+        heading('DAFTAR SOAL EVALUASI', 26),
+        new Paragraph({ text: 'Nama Siswa : ____________________________          Kelas / No. Absen : ______________________' }),
+        new Paragraph({ text: 'Tanggal : _______________________________          Nilai : __________________________________', spacing: { after: 300 } }),
+      ];
+
+      currentResult.daftarSoal.forEach((soal, index) => {
+        soalChildren.push(new Paragraph({
+          spacing: { before: 200 },
+          children: [
+            new TextRun({ text: `${index + 1}. `, bold: true }),
+            new TextRun({ text: soal.pertanyaan }),
+          ],
+        }));
+
+        if (soal.opsi && soal.opsi.length > 0) {
+          soal.opsi.forEach((opt, oIdx) => {
+            soalChildren.push(new Paragraph({
+              indent: { left: 400 },
+              children: [
+                new TextRun({ text: `${String.fromCharCode(65 + oIdx)}. `, bold: true }),
+                new TextRun({ text: opt }),
+              ],
+            }));
+          });
+        } else if (soal.tipe === 'Isian Singkat' || soal.tipe === 'Essay') {
+          soalChildren.push(new Paragraph({
+            indent: { left: 400 },
+            children: [new TextRun({ text: 'Jawaban: ' + '_'.repeat(60) })],
+          }));
+        }
+      });
+
+      // Kolom tanda tangan
+      if (pengaturan.namaGuru || pengaturan.namaKepsek) {
+        const tanggalTtd = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        soalChildren.push(
+          new Paragraph({ text: '', spacing: { before: 400 } }),
+          new Paragraph({ text: `Mengetahui,                                                                          ${tanggalTtd}` }),
+          new Paragraph({ text: 'Kepala Sekolah                                                                       Guru Mata Pelajaran' }),
+          new Paragraph({ text: '' }),
+          new Paragraph({ text: '' }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: (pengaturan.namaKepsek || '(...........................)').padEnd(50, ' '), bold: true }),
+              new TextRun({ text: pengaturan.namaGuru || '(...........................)', bold: true }),
+            ],
+          }),
+        );
+        if (pengaturan.nipKepsek || pengaturan.nipGuru) {
+          soalChildren.push(new Paragraph({
+            children: [
+              new TextRun({ text: (pengaturan.nipKepsek ? `NIP. ${pengaturan.nipKepsek}` : '').padEnd(50, ' '), size: 18 }),
+              new TextRun({ text: pengaturan.nipGuru ? `NIP. ${pengaturan.nipGuru}` : '', size: 18 }),
+            ],
+          }));
+        }
+      }
+      soalChildren.push(new Paragraph({ children: [new PageBreak()] }));
+
+      // --- HALAMAN KUNCI JAWABAN & PEMBAHASAN ---
+      const kunciChildren = [heading('KUNCI JAWABAN & PEMBAHASAN', 26)];
+      currentResult.daftarSoal.forEach((soal, index) => {
+        kunciChildren.push(
+          new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: `Soal ${index + 1}:`, bold: true })] }),
+          new Paragraph({ children: [new TextRun({ text: 'Kunci Jawaban: ', bold: true }), new TextRun(soal.jawaban || '-')] }),
+          new Paragraph({ children: [new TextRun({ text: 'Pembahasan: ', bold: true }), new TextRun(soal.pembahasan || '-')] }),
+        );
+      });
+
+      if (currentResult.instruksiTambahan) {
+        kunciChildren.push(
+          new Paragraph({ text: '', spacing: { before: 300 } }),
+          new Paragraph({ children: [new TextRun({ text: 'Catatan Tambahan Guru:', bold: true })] }),
+          new Paragraph({ children: [new TextRun({ text: currentResult.instruksiTambahan, italics: true })] }),
+        );
+      }
+
+      const sections = [{ children: [...coverChildren, ...soalChildren, ...kunciChildren] }];
+
+      // --- HALAMAN KISI-KISI (tabel) ---
+      if (currentResult.kisiKisi && currentResult.kisiKisi.length > 0) {
+        const headerRow = new TableRow({
+          children: ['No', 'Kompetensi Dasar / CP', 'Indikator Soal', 'Level'].map(text => new TableCell({
+            width: { size: 25, type: WidthType.PERCENTAGE },
+            shading: { fill: 'E6E6E6' },
+            children: [new Paragraph({ children: [new TextRun({ text, bold: true })] })],
+          })),
+        });
+
+        const bodyRows = currentResult.kisiKisi.map((k, idx) => new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph(String(k.nomor ?? idx + 1))] }),
+            new TableCell({ children: [new Paragraph(k.kompetensi || '-')] }),
+            new TableCell({ children: [new Paragraph(k.indikator || '-')] }),
+            new TableCell({ children: [new Paragraph(k.levelKognitif || '-')] }),
+          ],
+        }));
+
+        sections[0].children.push(
+          new Paragraph({ children: [new PageBreak()] }),
+          heading('KISI-KISI SOAL', 26),
+          new Paragraph({ alignment: AlignmentType.CENTER, text: `${currentResult.mataPelajaran} - ${currentResult.materi}`, spacing: { after: 200 } }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, ...bodyRows] }),
+        );
+      }
+
+      const docxDocument = new Document({ sections });
+      const blob = await Packer.toBlob(docxDocument);
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${currentResult.judul || 'Evaluasi'}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setIsDownloadingDocx(false);
+    } catch (err) {
+      console.error('DOCX generation failed:', err);
+      showToast('Gagal membuat file DOCX. Silakan coba lagi.', 'error');
+      setIsDownloadingDocx(false);
+    }
+  };
+
   const handleSaveToBank = (item) => {
     if (!bankSoal.find(b => b.id === item.id)) {
       setBankSoal([item, ...bankSoal]);
@@ -1213,6 +1388,9 @@ export default function App() {
              {/* Tombol Download Dinamis */}
              <NeonButton variant="primary" icon={Download} onClick={downloadPDF} disabled={isDownloading}>
                {isDownloading ? "Memproses PDF..." : "Download PDF"}
+             </NeonButton>
+             <NeonButton variant="secondary" icon={FileDown} onClick={downloadDOCX} disabled={isDownloadingDocx}>
+               {isDownloadingDocx ? "Memproses DOCX..." : "Download DOCX"}
              </NeonButton>
           </div>
         </div>
