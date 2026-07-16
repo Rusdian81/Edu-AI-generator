@@ -10,6 +10,7 @@ import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   AlignmentType, BorderStyle, WidthType, HeadingLevel, PageBreak, ImageRun
 } from 'docx';
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 
 // --- KONFIGURASI API ---
 // PENTING: Aplikasi ini pakai model "Bring Your Own Key" (BYOK).
@@ -45,7 +46,10 @@ const encodeQuizData = (data) => {
       }))
     };
     const json = JSON.stringify(trimmed);
-    return btoa(unescape(encodeURIComponent(json)));
+    // Dikompres dulu (lz-string) sebelum masuk URL, supaya soal yang lumayan
+    // banyak tetap bisa muat dalam batas kapasitas QR Code (biasanya bikin
+    // link 40-60% lebih pendek dibanding base64 polos).
+    return compressToEncodedURIComponent(json);
   } catch (e) {
     console.error("Gagal encode data soal:", e);
     return null;
@@ -54,7 +58,8 @@ const encodeQuizData = (data) => {
 
 const decodeQuizData = (encoded) => {
   try {
-    const json = decodeURIComponent(escape(atob(encoded)));
+    const json = decompressFromEncodedURIComponent(encoded);
+    if (!json) return null;
     const parsed = JSON.parse(json);
     if (!parsed || !Array.isArray(parsed.daftarSoal)) return null;
     return parsed;
@@ -1210,7 +1215,7 @@ export default function App() {
     }
     const baseUrl = `${window.location.origin}${window.location.pathname}`;
     const link = `${baseUrl}#siswa=${encoded}`;
-    if (link.length > 7000) {
+    if (link.length > 12000) {
       showToast("Jumlah soal terlalu banyak untuk dibagikan via link. Coba kurangi jumlah soal.", "error");
       return;
     }
@@ -1736,13 +1741,21 @@ export default function App() {
             </div>
             <p className="text-sm text-slate-400">Siswa tinggal scan QR atau buka link ini di HP/laptop mereka untuk langsung mengerjakan soal (hasil pilihan ganda dinilai otomatis).</p>
 
-            <div className="flex justify-center bg-white p-3 rounded-xl">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareModal.link)}`}
-                alt="QR Code soal"
-                width={200}
-                height={200}
-              />
+            <div className="flex justify-center bg-white p-3 rounded-xl min-h-[200px] items-center">
+              {shareModal.link.length <= 1800 ? (
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=L&data=${encodeURIComponent(shareModal.link)}`}
+                  alt="QR Code soal"
+                  width={200}
+                  height={200}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'block'; }}
+                />
+              ) : (
+                <p className="text-slate-500 text-xs text-center px-2">
+                  QR tidak tersedia karena jumlah soal cukup banyak (link terlalu panjang untuk di-encode ke QR).
+                  Silakan pakai tombol "Salin" di bawah untuk bagikan link-nya.
+                </p>
+              )}
             </div>
 
             <div className="flex gap-2">
