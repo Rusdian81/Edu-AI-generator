@@ -422,20 +422,46 @@ export default function App() {
   const tipeSoalOptions = ['Pilihan Ganda', 'Benar Salah', 'Menjodohkan', 'Isian Singkat', 'Essay', 'Campuran'];
   
   // Opsi Mata Pelajaran per Jenjang
-  const mapelSD = ['Matematika', 'Bahasa Indonesia', 'IPA', 'IPS', 'PKn', 'Seni Budaya'];
-  const mapelSMP = ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'IPA Terpadu', 'IPS Terpadu', 'Pendidikan Pancasila', 'PJOK'];
-  const mapelSMA = ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Fisika', 'Kimia', 'Biologi', 'Sejarah', 'Geografi', 'Ekonomi', 'Sosiologi'];
+  const mapelAgama = [
+    'Pendidikan Agama Islam dan Budi Pekerti',
+    'Pendidikan Agama Kristen dan Budi Pekerti',
+    'Pendidikan Agama Katolik dan Budi Pekerti',
+    'Pendidikan Agama Hindu dan Budi Pekerti',
+    'Pendidikan Agama Buddha dan Budi Pekerti',
+    'Pendidikan Agama Konghucu dan Budi Pekerti',
+  ];
+
+  const mapelSD = [
+    'Matematika', 'Bahasa Indonesia', 'IPA', 'IPS', 'PKn', 'Seni Budaya',
+    'PJOK', 'Bahasa Inggris', 'Muatan Lokal / Bahasa Daerah',
+    ...mapelAgama,
+  ];
+  const mapelSMP = [
+    'Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'IPA Terpadu', 'IPS Terpadu',
+    'Pendidikan Pancasila', 'PJOK', 'Informatika', 'Seni Budaya', 'Prakarya',
+    ...mapelAgama,
+  ];
+  const mapelSMA = [
+    'Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Fisika', 'Kimia', 'Biologi',
+    'Sejarah', 'Geografi', 'Ekonomi', 'Sosiologi', 'Pendidikan Pancasila', 'Informatika',
+    'Seni Budaya', 'PJOK', 'Projek IPAS', 'Antropologi',
+    ...mapelAgama,
+  ];
   const mapelSMK = [
-    'Teknik Komputer dan Jaringan (TKJ)', 
-    'Rekayasa Perangkat Lunak (RPL)', 
-    'Desain Komunikasi Visual (DKV)', 
-    'Akuntansi dan Keuangan Lembaga', 
-    'Teknik Kendaraan Ringan (Otomotif)', 
-    'Pariwisata & Perhotelan', 
+    'Teknik Komputer dan Jaringan (TKJ)',
+    'Rekayasa Perangkat Lunak (RPL)',
+    'Desain Komunikasi Visual (DKV)',
+    'Akuntansi dan Keuangan Lembaga',
+    'Teknik Kendaraan Ringan (Otomotif)',
+    'Pariwisata & Perhotelan',
     'Bisnis Digital / Pemasaran',
     'Matematika Terapan',
-    'Bahasa Inggris Terapan'
+    'Bahasa Inggris Terapan',
+    'Pendidikan Pancasila', 'Bahasa Indonesia', 'Matematika', 'Bahasa Inggris',
+    'PJOK', 'Sejarah', 'Seni Budaya', 'Informatika', 'Projek Kreatif dan Kewirausahaan',
+    ...mapelAgama,
   ];
+
 
   const getMapelOptions = () => {
     switch (formData.jenjang) {
